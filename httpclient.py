@@ -31,6 +31,7 @@ class HTTPResponse(object):
     def __init__(self, code=200, body=""):
         self.code = code
         self.body = body
+        print ("BODY:\n{}".format(self.body))
 
 class HTTPClient(object):
     #def get_host_port(self,url):
@@ -41,13 +42,14 @@ class HTTPClient(object):
         return None
 
     def get_code(self, data):
-        return None
+        http_status_code = data[:data.find("\n")]
+        return int(http_status_code.split()[1])
 
     def get_headers(self,data):
         return None
 
     def get_body(self, data):
-        return None
+        return data.split("\r\n\r\n")[1]
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
@@ -65,14 +67,42 @@ class HTTPClient(object):
                 buffer.extend(part)
             else:
                 done = not part
-        return buffer.decode('utf-8')
+        # try:
+        return buffer.decode('utf-8', errors='ignore')
+        # except UnicodeDecodeError:
+        #     print ("UnicodeDecodeError at part: {}".format(part))
 
     def GET(self, url, args=None):
-        code = 500
-        body = ""
+        urlP = urllib.parse.urlparse(url)
+        hostname = urlP.hostname
+        portnumber = urlP.port
+        path = urlP.path
+
+        if portnumber == None:
+            portnumber = 80
+        self.connect(hostname, portnumber)
+
+        # prepare and send data
+        path = "/" if path == "" else path
+        data = "GET "+path+" HTTP/1.1\r\nHost: "+hostname+"\r\nConnection: close\r\n\r\n"
+        self.sendall(data)
+        
+        # receive response
+        response = self.recvall(self.socket)
+
+        # extract and set code
+        code = self.get_code(response)
+
+        # extract and set body
+        body = self.get_body(response)
+        
+        self.close()
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
+        
+        
+        
         code = 500
         body = ""
         return HTTPResponse(code, body)
@@ -86,10 +116,11 @@ class HTTPClient(object):
 if __name__ == "__main__":
     client = HTTPClient()
     command = "GET"
+    
     if (len(sys.argv) <= 1):
         help()
         sys.exit(1)
     elif (len(sys.argv) == 3):
-        print(client.command( sys.argv[2], sys.argv[1] ))
+        client.command( sys.argv[2], sys.argv[1] )
     else:
         print(client.command( sys.argv[1] ))
