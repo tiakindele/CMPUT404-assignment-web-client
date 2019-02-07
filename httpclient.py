@@ -75,12 +75,12 @@ class HTTPClient(object):
     def GET(self, url, args=None):
         urlP = urllib.parse.urlparse(url)
         hostname = urlP.hostname
-        portnumber = urlP.port
+        portval = urlP.port
         path = urlP.path
 
-        if portnumber == None:
-            portnumber = 80
-        self.connect(hostname, portnumber)
+        if portval == None:
+            portval = 80
+        self.connect(hostname, portval)
 
         # prepare and send data
         path = "/" if path == "" else path
@@ -100,11 +100,36 @@ class HTTPClient(object):
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
+        urlP = urllib.parse.urlparse(url)
+        hostname = urlP.hostname
+        portval = urlP.port
+        path = "/" if urlP.path == "" else urlP.path
+        content = "" if args is None else urllib.parse.urlencode(args)
+        content_len = str(0 if args is None else len(content))
+
+        # prepare data to send
+        data = "POST " + path + " HTTP/1.1\r\n"
+        if portval is None:
+            data += "Host: "+hostname+"\r\nAccept: */*\r\nConnection: close\r\n"
+        else:
+            data += "Host: "+hostname+":"+str(portval)+"\r\nAccept: */*\r\nConnection: close\r\n"
+        data += "Content-Type: application/x-www-form-urlencoded\r\n"
+        data += "Content-Length: "+content_len+"\r\n\r\n"+content
         
+        # connect and send
+        self.connect(hostname, portval)
+        self.sendall(data)
+
+        # receive response
+        response = self.recvall(self.socket)
+
+        # extract and set code
+        code = self.get_code(response)
+
+        # extract and set body
+        body = self.get_body(response)
         
-        
-        code = 500
-        body = ""
+        self.close()
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
@@ -121,6 +146,6 @@ if __name__ == "__main__":
         help()
         sys.exit(1)
     elif (len(sys.argv) == 3):
-        client.command( sys.argv[2], sys.argv[1] )
+        print(client.command( sys.argv[2], sys.argv[1] ))
     else:
         print(client.command( sys.argv[1] ))
